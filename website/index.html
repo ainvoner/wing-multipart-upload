@@ -1,0 +1,119 @@
+<html>
+
+<head> </head>
+
+<body>
+
+</body>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<script>
+  function test() {
+    console.log("test");
+  }
+  async function initializeMultipartUpload(no_of_parts) {
+    const payload = {
+      s3_key: "multipart_file.mp4",
+      parts: no_of_parts
+    }
+    return await post_api(url, payload).then((response) => { return response.data; });
+  }
+  async function complete_upload(parts, upload_id) {
+    const payload = {
+      s3_key: "multipart_.mp4",
+      parts: parts,
+      upload_id: upload_id
+    }
+    return await post_api(url, payload).then((response) => { return response.data; })
+  }
+  function uploadUsingXmlWithPromise(blob, url) {
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.responseType = 'json';
+      request.open('PUT', url);
+
+      request.onerror = (err) => {
+        console.error(err);
+        reject(err);
+      };
+      request.upload.onerror = (arg) => {
+        console.error('ERR upload error', arg);
+        reject(arg);
+      };
+      request.upload.onprogress = (evt) => {
+        console.log(evt);
+      };
+      request.onreadystatechange = () => {
+        if (request.readyState == XMLHttpRequest.HEADERS_RECEIVED) {
+          const etag = request.getResponseHeader('ETag');
+          resolve(etag);
+        }
+      };
+      request.onload = () => {
+
+      };
+
+      request.send(blob);
+    });
+  }
+
+  async function uploadParts(uploadPromises) {
+    return await Promise.all(uploadPromises.map(async (element) => {
+      const uploadUrl = element.uploadUrl;
+      const partData = element.partData;
+      const partNumber = element.partNumber;
+      return await uploadUsingXmlWithPromise(partData, uploadUrl)
+        .then((etag) => {
+          etag = etag.replace(/"/g, "");
+          return {
+            "ETag": etag,
+            "PartNumber": partNumber + 1
+          }
+        });
+    })).then((parts) => {
+      console.log(parts)
+      return parts
+    }).catch((error) => {
+      throw Error("Error in uploading parts")
+    });
+  }
+
+  async function uploadVideos(files) {
+    const totalFileSize = files[0].size;
+    const partSize = 1 * 1024 * 1024 * 1024; //1GB
+    const totalParts = Math.ceil(totalFileSize / partSize);
+    const multipart_init_response = await initializeMultipartUpload(totalParts).catch((error) => {
+      console.log(error.response.status)
+      if (error.response.status === 401) {
+        throw Error("Please login again to upload a video")
+      }
+      else {
+        throw Error("Error in initializing multipart upload")
+      }
+    });
+    const upload_id = multipart_init_response.upload_id;
+    const upload_urls = multipart_init_response.upload_urls;
+    const uploadPromises = [];
+    for (let partNumber = 0; partNumber < totalParts; partNumber++) {
+      const start = partNumber * partSize;
+      const end = Math.min((partNumber + 1) * partSize, totalFileSize);
+      const file = files[0]
+      const partData = file.slice(start, end);
+      const uploadUrl = upload_urls[partNumber];
+      uploadPromises.push({ "uploadUrl": uploadUrl, "partData": partData, "partNumber": partNumber });
+    }
+    const parts = await uploadParts(uploadPromises).catch((error) => {
+      throw error
+    });
+    await complete_upload(parts, upload_id).catch((error) => {
+      console.log(error.response.status)
+      if (error.response.status === 401) {
+        throw Error("Please login again to upload a video")
+      }
+      else {
+        throw Error("Error in completing multipart upload")
+      }
+    });
+  }
+</script>
+
+</html>
