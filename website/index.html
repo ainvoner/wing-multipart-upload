@@ -31,7 +31,7 @@
       body: JSON.stringify(payload),
     });
     const jsonRes = await res.json();
-    console.log(jsonRes);
+    console.log("initializeMultipartUpload", jsonRes);
     return jsonRes;
   }
 
@@ -50,7 +50,7 @@
       body: JSON.stringify(payload)
     });
     const jsonRes = await res.json();
-    console.log(jsonRes);
+    console.log("complete_upload", jsonRes);
     return jsonRes;
   }
 
@@ -59,6 +59,7 @@
       const request = new XMLHttpRequest();
       request.responseType = 'json';
       request.open('PUT', url);
+      request.setRequestHeader('Access-Control-Allow-Origin', '*');
 
       request.onerror = (err) => {
         console.error(err);
@@ -114,7 +115,7 @@
     const totalParts = Math.ceil(totalFileSize / partSize);
     const multipart_init_response = await initializeMultipartUpload(totalParts)
       .catch((error) => {
-        console.log(error);
+        console.log("uploadVideos error", error);
         if (error.response.status === 401) {
           throw Error("Please login again to upload a video")
         }

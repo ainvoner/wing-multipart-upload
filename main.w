@@ -32,11 +32,12 @@ let handleCompleteUpload = inflight (req: cloud.ApiRequest) => {
 let upload_video_in_parts = inflight (s3_key: str, upload_id: str, part_no: num) => {
     let signed_url = multipartBucket.signedUrl(s3_key,    
         {
-            "uploadId": upload_id,
-            "partNumber": part_no
+            uploadId: upload_id,
+            partNumber: part_no,
+            action: cloud.BucketSignedUrlAction.UPLOAD
         }
     );
-    log(Json.stringify(signed_url));
+    log(signed_url);
     return signed_url;
 };
 
@@ -44,10 +45,16 @@ let handleInitiateMultipartUpload = inflight (req: cloud.ApiRequest) => {
     let json_data = Json.parse(req.body ?? "");
     let s3_key = str.fromJson(json_data["s3_key"]);
     let parts = num.fromJson(json_data["parts"]);
+    log("s3_key: {s3_key}");
+    log("parts: {parts}");
     let upload_id: str = multipartBucket.multipartUpload(s3_key);
+    log("upload_id: {upload_id}");
     let urls: MutArray<str> = MutArray<str>[];
-    for i in 1..parts {
-        let url = upload_video_in_parts(s3_key, upload_id, i);
+    for i in 0..parts {
+        log("uploading part {i}");
+        let j = i +1;
+        let url = upload_video_in_parts(s3_key, upload_id, j);
+        log("url {url}");
         urls.push(url);
     }
     return {
