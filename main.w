@@ -1,5 +1,6 @@
 bring cloud;
 bring aws;
+bring util;
 
 let api = new cloud.Api(
   cors: true,
@@ -13,7 +14,7 @@ let api = new cloud.Api(
   }
 );
 
-let multipartBucket = new aws.BucketRef("yoavs-bucket-c8cb97e7-20240618110534854900000001");
+let multipartBucket = new aws.BucketRef(util.tryEnv("BUCKET_NAME") ?? "bucket-c88fdc5f-20240618085816498500000001");
 
 let handleCompleteUpload = inflight (req: cloud.ApiRequest) => {
     let json_data = Json.parse(req.body ?? "");
