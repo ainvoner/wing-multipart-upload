@@ -1,4 +1,5 @@
 bring cloud;
+bring aws;
 
 let api = new cloud.Api(
   cors: true,
@@ -12,7 +13,7 @@ let api = new cloud.Api(
   }
 );
 
-let multipartBucket = new cloud.Bucket();
+let multipartBucket = new aws.BucketRef("bucket-c88fdc5f-20240618085816498500000001");
 
 let handleCompleteUpload = inflight (req: cloud.ApiRequest) => {
     let json_data = Json.parse(req.body ?? "");
@@ -35,6 +36,7 @@ let upload_video_in_parts = inflight (s3_key: str, upload_id: str, part_no: num)
             "partNumber": part_no
         }
     );
+    log(Json.stringify(signed_url));
     return signed_url;
 };
 
@@ -61,3 +63,4 @@ api.post("/initiateMultipartUpload", handleInitiateMultipartUpload);
 api.post("/completeUpload", handleCompleteUpload);
 
 let website = new cloud.Website(path: "./website");
+website.addJson("config.json", { apiUrl: api.url });

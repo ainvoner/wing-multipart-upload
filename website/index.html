@@ -8,21 +8,52 @@
 </body>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 <script>
+
+  const getConfig = () => {
+    return new Promise((resolve) => {
+      $.getJSON("./config.json", function (data) {
+        resolve(data);
+      });
+    });
+  };
+
   async function initializeMultipartUpload(no_of_parts) {
     const payload = {
       s3_key: "multipart_file.mp4",
       parts: no_of_parts
     }
-    return await post_api(url, payload).then((response) => { return response.data; });
+    const config = await getConfig();
+    const res = await fetch(`${config.apiUrl}/initiateMultipartUpload`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const jsonRes = await res.json();
+    console.log(jsonRes);
+    return jsonRes;
   }
+
   async function complete_upload(parts, upload_id) {
     const payload = {
       s3_key: "multipart_file.mp4",
       parts: parts,
       upload_id: upload_id
-    }
-    return await post_api(url, payload).then((response) => { return response.data; })
+    };
+    const config = await getConfig();
+    const res = await fetch(`${config.apiUrl}/completeUpload`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload)
+    });
+    const jsonRes = await res.json();
+    console.log(jsonRes);
+    return jsonRes;
   }
+
   function uploadUsingXmlWithPromise(blob, url) {
     return new Promise((resolve, reject) => {
       const request = new XMLHttpRequest();
@@ -81,16 +112,18 @@
     const totalFileSize = files[0].size;
     const partSize = 1 * 1024 * 1024 * 1024; //1GB
     const totalParts = Math.ceil(totalFileSize / partSize);
-    const multipart_init_response = await initializeMultipartUpload(totalParts).catch((error) => {
-      console.log(error.response.status)
-      if (error.response.status === 401) {
-        throw Error("Please login again to upload a video")
-      }
-      else {
-        throw Error("Error in initializing multipart upload")
-      }
-    });
-    const upload_id = multipart_init_response.upload_id;
+    const multipart_init_response = await initializeMultipartUpload(totalParts)
+      .catch((error) => {
+        console.log(error);
+        if (error.response.status === 401) {
+          throw Error("Please login again to upload a video")
+        }
+        else {
+          throw Error("Error in initializing multipart upload")
+        }
+      });
+    console.log(multipart_init_response);
+    const upload_id = multipart_init_response.UploadId;
     const upload_urls = multipart_init_response.upload_urls;
     const uploadPromises = [];
     for (let partNumber = 0; partNumber < totalParts; partNumber++) {
