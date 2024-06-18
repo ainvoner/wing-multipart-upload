@@ -17,9 +17,9 @@
     });
   };
 
-  async function initializeMultipartUpload(no_of_parts) {
+  async function initializeMultipartUpload(name, no_of_parts) {
     const payload = {
-      s3_key: "multipart_file.jpg",
+      s3_key: name,
       parts: no_of_parts
     }
     const config = await getConfig();
@@ -35,9 +35,9 @@
     return jsonRes;
   }
 
-  async function complete_upload(parts, upload_id) {
+  async function complete_upload(name, parts, upload_id) {
     const payload = {
-      s3_key: "multipart_file.jpg",
+      s3_key: name,
       parts: parts,
       upload_id: upload_id
     };
@@ -113,9 +113,10 @@
   async function uploadVideos() {
     const files = document.getElementById('multi').files;
     const totalFileSize = files[0].size;
-    const partSize = 1 * 10 * 1024 * 1024; //10 MB
+    const name = files[0].name;
+    const partSize = 1 * 6 * 1024 * 1024; //6 MB
     const totalParts = Math.ceil(totalFileSize / partSize);
-    const multipart_init_response = await initializeMultipartUpload(totalParts)
+    const multipart_init_response = await initializeMultipartUpload(name, totalParts)
       .catch((error) => {
         console.log("uploadVideos error", error);
         if (error.response.status === 401) {
@@ -141,7 +142,7 @@
       throw error
     });
     console.log("all parts were uploaded", parts);
-    await complete_upload(parts, upload_id).catch((error) => {
+    await complete_upload(name, parts, upload_id).catch((error) => {
       console.log(error.response.status)
       if (error.response.status === 401) {
         throw Error("Please login again to upload a video")
