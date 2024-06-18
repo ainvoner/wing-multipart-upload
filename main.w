@@ -18,10 +18,12 @@ let multipartBucket = new aws.BucketRef(util.tryEnv("BUCKET_NAME") ?? "bucket-c8
 
 let handleCompleteUpload = inflight (req: cloud.ApiRequest) => {
     let json_data = Json.parse(req.body ?? "");
+    log("json_data: {json_data}");
     let s3_key = str.fromJson(json_data["s3_key"]);
     let upload_id = str.fromJson(json_data["upload_id"]);
-    let parts = num.fromJson(json_data["parts"]);
+    let parts = json_data["parts"];
     let mp_upload = cloud.MultipartUpload.fromJson({uploadId: upload_id, key: s3_key, parts: parts});
+    log("mp_upload: {Json mp_upload}");
     multipartBucket.completeMultipartUpload(mp_upload);
     return {
         "status": 200,
@@ -39,7 +41,7 @@ let upload_video_in_parts = inflight (s3_key: str, mp_upload: cloud.MultipartUpl
             action: cloud.BucketSignedUrlAction.UPLOAD
         }
     );
-    log(signed_url);
+    log("signed url {signed_url}");
     return signed_url;
 };
 
@@ -50,11 +52,11 @@ let handleInitiateMultipartUpload = inflight (req: cloud.ApiRequest) => {
     log("s3_key: {s3_key}");
     log("parts: {parts}");
     let mp_upload = multipartBucket.multipartUpload(s3_key);
-    log("upload_id: {Json mp_upload}");
+    log("mp_upload: {Json mp_upload}");
     let urls: MutArray<str> = MutArray<str>[];
     for i in 0..parts {
-        log("uploading part {i}");
         let j = i +1;
+        log("generating url from part {j}");
         let url = upload_video_in_parts(s3_key, mp_upload, j);
         log("url {url}");
         urls.push(url);
@@ -63,7 +65,7 @@ let handleInitiateMultipartUpload = inflight (req: cloud.ApiRequest) => {
         "status": 200,
         "body": Json.stringify({
             mp_upload: mp_upload,
-            "upload_urls": urls.copy()
+            upload_urls: urls.copy()
         })
     };
 };

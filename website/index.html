@@ -19,7 +19,7 @@
 
   async function initializeMultipartUpload(no_of_parts) {
     const payload = {
-      s3_key: "multipart_file.mp4",
+      s3_key: "multipart_file.jpg",
       parts: no_of_parts
     }
     const config = await getConfig();
@@ -37,7 +37,7 @@
 
   async function complete_upload(parts, upload_id) {
     const payload = {
-      s3_key: "multipart_file.mp4",
+      s3_key: "multipart_file.jpg",
       parts: parts,
       upload_id: upload_id
     };
@@ -59,7 +59,6 @@
       const request = new XMLHttpRequest();
       request.responseType = 'json';
       request.open('PUT', url);
-      request.setRequestHeader('Access-Control-Allow-Origin', '*');
 
       request.onerror = (err) => {
         console.error(err);
@@ -87,20 +86,24 @@
   }
 
   async function uploadParts(uploadPromises) {
-    return await Promise.all(uploadPromises.map(async (element) => {
-      const uploadUrl = element.uploadUrl;
-      const partData = element.partData;
-      const partNumber = element.partNumber;
+    return await Promise.all(uploadPromises.map(async (uploadObject) => {
+      const uploadUrl = uploadObject.uploadUrl;
+      const partData = uploadObject.partData;
+      const partNumber = uploadObject.partNumber;
+      console.log("uploadUrl", uploadUrl);
+      console.log("partData", partData);
+      console.log("partNumber", partNumber);
       return await uploadUsingXmlWithPromise(partData, uploadUrl)
         .then((etag) => {
-          etag = etag.replace(/"/g, "");
+          console.log("etag", etag);
+          etag = etag.replaceAll('"', "");
           return {
-            "ETag": etag,
-            "PartNumber": partNumber + 1
+            "etag": etag,
+            "num": partNumber + 1
           }
         });
     })).then((parts) => {
-      console.log(parts)
+      console.log("parts", parts)
       return parts
     }).catch((error) => {
       throw Error("Error in uploading parts")
@@ -109,7 +112,6 @@
 
   async function uploadVideos() {
     const files = document.getElementById('multi').files;
-    console.log(files[0]);
     const totalFileSize = files[0].size;
     const partSize = 1 * 1024 * 1024 * 1024; //1GB
     const totalParts = Math.ceil(totalFileSize / partSize);
@@ -124,7 +126,7 @@
         }
       });
     console.log(multipart_init_response);
-    const upload_id = multipart_init_response.UploadId;
+    const upload_id = multipart_init_response.mp_upload.uploadId;
     const upload_urls = multipart_init_response.upload_urls;
     const uploadPromises = [];
     for (let partNumber = 0; partNumber < totalParts; partNumber++) {
@@ -138,6 +140,7 @@
     const parts = await uploadParts(uploadPromises).catch((error) => {
       throw error
     });
+    console.log("all parts were uploaded", parts);
     await complete_upload(parts, upload_id).catch((error) => {
       console.log(error.response.status)
       if (error.response.status === 401) {
