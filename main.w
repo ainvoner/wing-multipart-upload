@@ -22,9 +22,7 @@ let handleCompleteUpload = inflight (req: cloud.ApiRequest) => {
     let s3_key = str.fromJson(json_data["s3_key"]);
     let upload_id = str.fromJson(json_data["upload_id"]);
     let parts = json_data["parts"];
-    let mp_upload = cloud.MultipartUpload.fromJson({uploadId: upload_id, key: s3_key, parts: parts});
-    log("mp_upload: {Json mp_upload}");
-    multipartBucket.completeUpload(mp_upload);
+    multipartBucket.completeUpload({uploadId: upload_id, key: s3_key}, unsafeCast(parts));
     return {
         "status": 200,
         "body": Json.stringify({
