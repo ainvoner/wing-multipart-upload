@@ -24,7 +24,7 @@ let handleCompleteUpload = inflight (req: cloud.ApiRequest) => {
     let parts = json_data["parts"];
     let mp_upload = cloud.MultipartUpload.fromJson({uploadId: upload_id, key: s3_key, parts: parts});
     log("mp_upload: {Json mp_upload}");
-    multipartBucket.completeMultipartUpload(mp_upload);
+    multipartBucket.completeUpload(mp_upload);
     return {
         "status": 200,
         "body": Json.stringify({
@@ -51,7 +51,7 @@ let handleInitiateMultipartUpload = inflight (req: cloud.ApiRequest) => {
     let parts = num.fromJson(json_data["parts"]);
     log("s3_key: {s3_key}");
     log("parts: {parts}");
-    let mp_upload = multipartBucket.multipartUpload(s3_key);
+    let mp_upload = multipartBucket.startUpload(s3_key);
     log("mp_upload: {Json mp_upload}");
     let urls: MutArray<str> = MutArray<str>[];
     for i in 0..parts {
