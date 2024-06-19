@@ -1,21 +1,39 @@
 <html>
 
-<head> </head>
+<head>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <script>
+    const getConfig = () => {
+      return new Promise((resolve) => {
+        $.getJSON("./config.json", function (data) {
+          resolve(data);
+        });
+      });
+    };
+  </script>
+</head>
 
 <body>
-  <input type="file" name="randomfile" id="multi">
-  <button onclick="uploadVideos()">upload</button>
+  <div class="container">
+    <div class="card">
+      <h3>Upload Files</h3>
+      <div class="drop_box">
+        <input type="file" hidden id="multi" style="display:none;">
+        <button class="btn">
+          <span class="btn_text">Choose File</span>
+        </button>
+        <progress id="file_progress" value="0" max="100" style="display:none;"></progress>
+      </div>
+    </div>
+  </div>
 </body>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
 <script>
 
-  const getConfig = () => {
-    return new Promise((resolve) => {
-      $.getJSON("./config.json", function (data) {
-        resolve(data);
-      });
-    });
-  };
+  let progress = 0;
+  let numberOfChunks = 0;
+  let isError = false;
 
   async function initializeMultipartUpload(name, no_of_parts) {
     const payload = {
@@ -35,7 +53,7 @@
     return jsonRes;
   }
 
-  async function complete_upload(name, parts, upload_id) {
+  async function completeUpload(name, parts, upload_id) {
     const payload = {
       s3_key: name,
       parts: parts,
@@ -50,7 +68,7 @@
       body: JSON.stringify(payload)
     });
     const jsonRes = await res.json();
-    console.log("complete_upload", jsonRes);
+    console.log("completeUpload", jsonRes);
     return jsonRes;
   }
 
@@ -86,37 +104,44 @@
   }
 
   async function uploadParts(uploadPromises) {
-    return await Promise.all(uploadPromises.map(async (uploadObject) => {
-      const uploadUrl = uploadObject.uploadUrl;
-      const partData = uploadObject.partData;
-      const partNumber = uploadObject.partNumber;
-      console.log("uploadUrl", uploadUrl);
-      console.log("partData", partData);
-      console.log("partNumber", partNumber);
-      return await uploadUsingXmlWithPromise(partData, uploadUrl)
-        .then((etag) => {
-          console.log("etag", etag);
-          etag = etag.replaceAll('"', "");
-          return {
-            "etag": etag,
-            "num": partNumber + 1
-          }
-        });
-    })).then((parts) => {
-      console.log("parts", parts)
-      return parts
-    }).catch((error) => {
-      throw Error("Error in uploading parts")
-    });
+    return await Promise.all(uploadPromises.map(
+      async (uploadObject) => {
+        const uploadUrl = uploadObject.uploadUrl;
+        const partData = uploadObject.partData;
+        const partNumber = uploadObject.partNumber;
+        console.log("uploadUrl", uploadUrl);
+        console.log("partData", partData);
+        console.log("partNumber", partNumber);
+        return await uploadUsingXmlWithPromise(partData, uploadUrl)
+          .then((etag) => {
+            progress++;
+            console.log(`Progress: ${progress}/${numberOfChunks}`);
+            setProgress((progress / numberOfChunks) * 100);
+            console.log("etag", etag);
+            etag = etag.replaceAll('"', "");
+            return {
+              "etag": etag,
+              "num": partNumber + 1
+            }
+          });
+      })).then((parts) => {
+        console.log("all parts where uploaded", parts)
+        return parts;
+      }).catch((error) => {
+        throw Error("Error in uploading parts");
+      });
   }
 
   async function uploadVideos() {
+    setLoadingIndicator();
+    let progress = 0;
     const files = document.getElementById('multi').files;
     const totalFileSize = files[0].size;
     const name = files[0].name;
     const partSize = 1 * 6 * 1024 * 1024; //6 MB
     const totalParts = Math.ceil(totalFileSize / partSize);
-    const multipart_init_response = await initializeMultipartUpload(name, totalParts)
+    numberOfChunks = totalParts;
+    const multipartInitResponse = await initializeMultipartUpload(name, totalParts)
       .catch((error) => {
         console.log("uploadVideos error", error);
         if (error.response.status === 401) {
@@ -126,31 +151,85 @@
           throw Error("Error in initializing multipart upload")
         }
       });
-    console.log(multipart_init_response);
-    const upload_id = multipart_init_response.mp_upload.uploadId;
-    const upload_urls = multipart_init_response.upload_urls;
+    console.log("multipartInitResponse", multipartInitResponse);
+    const upload_id = multipartInitResponse.mp_upload.uploadId;
+    const upload_urls = multipartInitResponse.upload_urls;
     const uploadPromises = [];
     for (let partNumber = 0; partNumber < totalParts; partNumber++) {
       const start = partNumber * partSize;
       const end = Math.min((partNumber + 1) * partSize, totalFileSize);
-      const file = files[0]
+      const file = files[0];
       const partData = file.slice(start, end);
       const uploadUrl = upload_urls[partNumber];
-      uploadPromises.push({ "uploadUrl": uploadUrl, "partData": partData, "partNumber": partNumber });
+      uploadPromises.push({
+        "uploadUrl": uploadUrl,
+        "partData": partData,
+        "partNumber": partNumber
+      });
     }
-    const parts = await uploadParts(uploadPromises).catch((error) => {
-      throw error
-    });
+    const parts = await uploadParts(uploadPromises)
+      .catch((error) => {
+        throw error;
+      });
     console.log("all parts were uploaded", parts);
-    await complete_upload(name, parts, upload_id).catch((error) => {
-      console.log(error.response.status)
-      if (error.response.status === 401) {
-        throw Error("Please login again to upload a video")
-      }
-      else {
-        throw Error("Error in completing multipart upload")
-      }
-    });
+    await completeUpload(name, parts, upload_id)
+      .then(() => {
+        console.log("Upload completed successfully");
+        progress = 100;
+        setProgress((progress / numberOfChunks) * 100);
+        removeLoadingIndicator();
+      })
+      .catch((error) => {
+        console.log(error.response.status)
+        if (error.response.status === 401) {
+          throw Error("Please login again to upload a video")
+        }
+        else {
+          throw Error("Error in completing multipart upload")
+        }
+      });
+  }
+</script>
+
+<script>
+  const dropArea = document.querySelector(".drop_box"),
+    button = dropArea.querySelector("button"),
+    buttonText = dropArea.querySelector(".btn_text"),
+    input = dropArea.querySelector("input");
+  let file;
+  let filename;
+
+  button.onclick = () => {
+    input.click();
+  };
+
+  input.addEventListener("change", function (e) {
+    let fileName = e.target.files[0].name;
+    let header = document.createElement("h4");
+    header.innerHTML = fileName;
+    dropArea.prepend(header);
+    button.onclick = uploadVideos;
+    buttonText.innerHTML = "Upload";
+  });
+
+  function setLoadingIndicator() {
+    document.getElementById('file_progress').style = "display:block;";
+    var div = document.createElement('div');
+    div.innerHTML = `<i id="loading" class="fa fa-spinner fa-spin"></i>`;
+    div.firstChild;
+    buttonText.innerHTML = ""
+    button.prepend(div);
+  }
+
+  function removeLoadingIndicator() {
+    document.getElementById('loading').remove();
+    buttonText.innerHTML = "Done";
+    // document.getElementById('file_progress').style = "display:none;";
+    button.disabled = true;
+  }
+
+  function setProgress(value) {
+    document.getElementById('file_progress').value = value;
   }
 </script>
 

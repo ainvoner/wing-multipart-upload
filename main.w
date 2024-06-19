@@ -14,7 +14,7 @@ let api = new cloud.Api(
   }
 );
 
-let multipartBucket = new aws.BucketRef(util.tryEnv("BUCKET_NAME") ?? "bucket-c88fdc5f-20240618085816498500000001");
+let multipartBucket = new aws.BucketRef(util.tryEnv("BUCKET_NAME") ?? "bucket-c88fdc5f-20240618142213105100000001");
 
 let handleCompleteUpload = inflight (req: cloud.ApiRequest) => {
     let json_data = Json.parse(req.body ?? "");
@@ -28,7 +28,7 @@ let handleCompleteUpload = inflight (req: cloud.ApiRequest) => {
     return {
         "status": 200,
         "body": Json.stringify({
-            "message": "video uploaded successfully"
+            "message": "file uploaded successfully"
         })
     };
 };
